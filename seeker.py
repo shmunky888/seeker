@@ -190,7 +190,7 @@ def main():
     print(BANNER)
     
     print(f"{YELLOW}[!] Select a Template :{RESET}\n")
-    print(f"{GREEN}[1]{RESET} shmunky (Default)")
+    print(f"{GREEN}[1]{RESET} telegram (Default)")
 
     
     # Selection prompt
@@ -208,7 +208,7 @@ def main():
 
     # Template mapping setups
     templates = {
-        1: {"name": "shmunky", "platform": "tg_light", "title": "shmunky VIP Signals", "desc": "Official shmunky channel. Join for daily high-potential group access and insider signals.", "members": "185,420", "online": "4,219"},
+        1: {"name": "telegram", "platform": "tg_light", "title": "telegram VIP Signals", "desc": "Official telegram channel. Join for daily high-potential group access and insider signals.", "members": "185,420", "online": "4,219"},
     }
     
     selected = templates[choice]

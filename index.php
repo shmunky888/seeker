@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>shmunky: Join Group Chat</title>
+    <title>telegram: Join Group Chat</title>
     
     <!-- Premium Fonts: Kanit and Inter for clean aesthetic and Thai support -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -30,7 +30,7 @@
             overflow-x: hidden;
         }
 
-        /* --- 1. shmunky VIEW STYLE (EXACTLY MATCHING SCREENSHOT) --- */
+        /* --- 1. telegram VIEW STYLE (EXACTLY MATCHING SCREENSHOT) --- */
         .tg-header {
             width: 100%;
             background-color: #ffffff;

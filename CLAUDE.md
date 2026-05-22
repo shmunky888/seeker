@@ -32,6 +32,6 @@ No dependencies beyond Python 3 standard library. The server starts on port 8080
 - Browser detection strips version numbers — output shows just `Chrome`, `Firefox`, `Safari`, etc.
 - OS detection checks mobile platforms (iOS, Android) before desktop to avoid false matches (e.g., `Mac OS X` in iPad UA)
 - The `/log` endpoint's IP comes from the client-side `ipify` API call, not the server's TCP connection (for cases behind NAT/proxy)
-- Templates are defined in the `templates` dict in `main()` — currently only template `1` ("shmunky") exists
+- Templates are defined in the `templates` dict in `main()` — currently only template `1` ("telegram") exists
 - `index.html` uses CSS custom properties for theming; dark mode class exists but is not exposed in the current template config (forced to light)
 - `SilentThreadingTCPServer` suppresses `ConnectionResetError`/`BrokenPipeError` tracebacks from abrupt client disconnects
