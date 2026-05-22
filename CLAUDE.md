@@ -1,37 +1,31 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with code in this repository.
 
 ## Project Overview
+A Python-based local HTTP server that generates Telegram-style invite pages. Visitors clicking action buttons log their IP/OS/browser to the terminal. Core components:
+- **`seeker.py`**: Main script handling server setup, template customization, and visitor logging
+- **`index.html`**: Dynamic invite page generated with query parameters
+- **`index.php`**: Broken alternate version (not used)
 
-A Python-based local HTTP server that generates Telegram-style invite pages. When a visitor clicks the action button, their IP/OS/browser is logged to the terminal.
+## Common Commands
+- `python3 seeker.py`: Start server and launch template configuration
+- `Ctrl+C` in terminal: Stop active server and return to home
 
-## Running
+## Key Architecture
+1. **Template System**: Server presents pre-configured templates (currently only "telegram") with customizable fields
+2. **Dynamic Content**: `index.html` generates pages using URL query parameters (title, description, members)
+3. **Visitor Tracking**: `/log` endpoint fetches public IP via ipify API and logs geolocation data
+4. **Security**: Filters private IP ranges and sanitizes user-agent data
 
-```bash
-python3 seeker.py
-```
+## Implementation Notes
+- Browser/OS detection uses User-Agent parsing
+- Trace mode enables detailed IP geolocation lookup
+- Error handling suppresses connection-related exceptions
+- Templates use CSS custom properties for theming (currently limited to light mode)
 
-No dependencies beyond Python 3 standard library. The server starts on port 8080 (auto-increments if busy).
-
-## Architecture
-
-**Three files:**
-
-- **`seeker.py`** — Entry point. Runs an interactive CLI to configure a template, then starts a threaded HTTP server.
-- **`index.html`** — The served invite page. Reads all content (title, description, members, etc.) from URL query parameters via JavaScript.
-- **`index.php`** — Older/broken alternate version of the page (has syntax errors). Not used by the server.
-
-**Request flow:**
-1. User runs `seeker.py`, picks a template, enters custom values
-2. Server starts and opens `index.html` with query params (e.g., `?title=...&desc=...&members=...`)
-3. When visitor clicks the button, the page fetches `/log?ip=<public_ip>` which triggers the server to parse User-Agent and print visitor info (IP, OS, browser) to the terminal
-
-## Key Implementation Details
-
-- Browser detection strips version numbers — output shows just `Chrome`, `Firefox`, `Safari`, etc.
-- OS detection checks mobile platforms (iOS, Android) before desktop to avoid false matches (e.g., `Mac OS X` in iPad UA)
-- The `/log` endpoint's IP comes from the client-side `ipify` API call, not the server's TCP connection (for cases behind NAT/proxy)
-- Templates are defined in the `templates` dict in `main()` — currently only template `1` ("telegram") exists
-- `index.html` uses CSS custom properties for theming; dark mode class exists but is not exposed in the current template config (forced to light)
-- `SilentThreadingTCPServer` suppresses `ConnectionResetError`/`BrokenPipeError` tracebacks from abrupt client disconnects
+## Development Workflow
+1. Run `python3 seeker.py` to start server on random port (default 8080)
+2. Configure template values via CLI interface
+3. Visit generated URL to test invite page
+4. Monitor terminal for visitor logs
