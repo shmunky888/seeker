@@ -393,7 +393,7 @@ def main():
         main()
         sys.exit(0)
     except (KeyboardInterrupt, EOFError):
-        print(f"\n\n{RED}[🛑] Local server stopped. Goodbye!{RESET}")
+        print(f"\n\n{RED}Local server stopped. Goodbye!{RESET}")
         stop_active_servers()
         sys.exit(0)
 
