@@ -46,3 +46,22 @@ A Python-based local HTTP server that generates Telegram-style invite pages. Vis
 2. Configure template values via CLI interface
 3. Visit generated URL to test invite page
 4. Monitor terminal for visitor logs
+
+## Development Commands
+- **Run server (default):** `python3 seeker.py`
+- **Run server on custom port:** `PORT=5000 python3 seeker.py`
+- **Enable trace mode:** select option `1` at the startup menu
+- **Run lint:** `python -m py_compile $(git ls-files "*.py")`
+- **Run unit tests:** `python -m unittest discover -s tests`
+- **Run a single test:** `python -m unittest path/to/test_module.py`
+- **Check code style (optional):** install `flake8` and run `flake8 .`
+
+## Project Structure Overview
+- `seeker.py` – entry point, sets up the threaded HTTP server and CLI configuration.
+- `index.html` – template for the invite page; populated via URL query parameters.
+- `index.php` – legacy/placeholder file, not used by the server.
+- `tests/` – (optional) directory for unit tests; currently may be empty.
+- `README.md` – high‑level usage instructions and parameter reference.
+- `CLAUDE.md` – this guidance file for Claude Code.
+
+These commands and structure help future Claude instances quickly understand how to build, lint, run, and test the project.
