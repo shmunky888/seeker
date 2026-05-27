@@ -275,7 +275,7 @@ def get_input(prompt, default_value=""):
 
 def select_menu() -> str:
     print(f"{YELLOW}[!] Trace Mode :{RESET}\n")
-    print(f"{GREEN}[1]{RESET} Enable Trace")
+    print(f"{GREEN}[1]{RESET} Trace")
     print(f"{GREEN}[2]{RESET} seeker mode")
     print(f"{GREEN}[3]{RESET} Exit Program")
 
